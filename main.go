@@ -1039,7 +1039,12 @@ func generateLinux(files FilesToProcess, linuxBanner string) (*vtypeJson, error)
 
 	}
 
+	if err := addLinuxBanner(doc, linuxBanner); err != nil {
+		return nil, fmt.Errorf("could not set linux banner: %v", err)
+	}
+
 	doc.Metadata.Linux = linuxMeta
+
 	return doc, nil
 }
 

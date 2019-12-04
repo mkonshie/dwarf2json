@@ -591,6 +591,7 @@ Commands:
 
 	// linux subcommand setup
 	linuxArgs := pflag.NewFlagSet("linux", pflag.ExitOnError)
+	linuxBanner := linuxArgs.String("linux-banner", "", "Linux banner value matching `linux_banner` symbol")
 	elfPaths := linuxArgs.StringArray("elf", nil, "ELF file `PATH` to extract symbol and type information")
 	systemMapPaths := linuxArgs.StringArray("system-map", nil, "System.Map file `PATH` to extract symbol information")
 	elfTypePaths := linuxArgs.StringArray("elf-types", nil, "ELF file `PATH` to extract only type information")
@@ -677,7 +678,7 @@ Commands:
 			os.Exit(1)
 		}
 
-		doc, err = generateLinux(filesToProcess)
+		doc, err = generateLinux(filesToProcess, *linuxBanner)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed linux processing: %v\n", err)
 			os.Exit(1)
@@ -902,7 +903,7 @@ func processMachoSymTab(doc *vtypeJson, machoFile *macho.File, extract Extract) 
 	return nil
 }
 
-func generateLinux(files FilesToProcess) (*vtypeJson, error) {
+func generateLinux(files FilesToProcess, linuxBanner string) (*vtypeJson, error) {
 
 	doc := newVtypeJson()
 
@@ -957,6 +958,10 @@ func generateLinux(files FilesToProcess) (*vtypeJson, error) {
 			}
 		}
 
+	}
+
+	if err := addLinuxBanner(doc, linuxBanner); err != nil {
+		return nil, fmt.Errorf("could not set linux banner: %v", err)
 	}
 
 	return doc, nil
@@ -1055,5 +1060,32 @@ func processElfSymTab(doc *vtypeJson, elfFile *elf.File, extract Extract) error 
 			cb(elfsym)
 		}
 	}
+	return nil
+}
+
+func addLinuxBanner(doc *vtypeJson, linuxBanner string) error {
+	// Exit if linux banner is not set
+	if linuxBanner == "" {
+		return nil
+	}
+
+	elfSymbol := "linux_banner"
+	sym, ok := doc.Symbols[elfSymbol]
+	if !ok {
+		return fmt.Errorf("linux_banner symbol does not exist")
+	}
+
+	// Make sure linux banner has the newline and Null bytes (0x0a00)
+	constantData := []byte(linuxBanner)
+	if constantData[len(constantData)-1] != 0x00 {
+		if constantData[len(constantData)-2] != 0x0a {
+			constantData = append(constantData, 0x0a)
+		}
+		constantData = append(constantData, 0x00)
+	}
+
+	sym.ConstantData = constantData
+	doc.Symbols[elfSymbol] = sym
+
 	return nil
 }
